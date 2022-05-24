@@ -41,15 +41,16 @@ type UpdateQueryOptions struct {
 
 // Issue represents a Jira issue.
 type Issue struct {
-	Expand         string               `json:"expand,omitempty" structs:"expand,omitempty"`
-	ID             string               `json:"id,omitempty" structs:"id,omitempty"`
-	Self           string               `json:"self,omitempty" structs:"self,omitempty"`
-	Key            string               `json:"key,omitempty" structs:"key,omitempty"`
-	Fields         *IssueFields         `json:"fields,omitempty" structs:"fields,omitempty"`
-	RenderedFields *IssueRenderedFields `json:"renderedFields,omitempty" structs:"renderedFields,omitempty"`
-	Changelog      *Changelog           `json:"changelog,omitempty" structs:"changelog,omitempty"`
-	Transitions    []Transition         `json:"transitions,omitempty" structs:"transitions,omitempty"`
-	Names          map[string]string    `json:"names,omitempty" structs:"names,omitempty"`
+	Expand         string                                            `json:"expand,omitempty" structs:"expand,omitempty"`
+	ID             string                                            `json:"id,omitempty" structs:"id,omitempty"`
+	Self           string                                            `json:"self,omitempty" structs:"self,omitempty"`
+	Key            string                                            `json:"key,omitempty" structs:"key,omitempty"`
+	Fields         *IssueFields                                      `json:"fields,omitempty" structs:"fields,omitempty"`
+	Update         *map[string][]map[string]map[string][]interface{} `json:"update,omitempty" structs:"update,omitempty"`
+	RenderedFields *IssueRenderedFields                              `json:"renderedFields,omitempty" structs:"renderedFields,omitempty"`
+	Changelog      *Changelog                                        `json:"changelog,omitempty" structs:"changelog,omitempty"`
+	Transitions    []Transition                                      `json:"transitions,omitempty" structs:"transitions,omitempty"`
+	Names          map[string]string                                 `json:"names,omitempty" structs:"names,omitempty"`
 }
 
 // ChangelogItems reflects one single changelog item of a history item
@@ -109,7 +110,6 @@ type IssueFields struct {
 	Expand                        string            `json:"expand,omitempty" structs:"expand,omitempty"`
 	Type                          IssueType         `json:"issuetype,omitempty" structs:"issuetype,omitempty"`
 	Project                       Project           `json:"project,omitempty" structs:"project,omitempty"`
-	Environment                   string            `json:"environment,omitempty" structs:"environment,omitempty"`
 	Resolution                    *Resolution       `json:"resolution,omitempty" structs:"resolution,omitempty"`
 	Priority                      *Priority         `json:"priority,omitempty" structs:"priority,omitempty"`
 	Resolutiondate                Time              `json:"resolutiondate,omitempty" structs:"resolutiondate,omitempty"`
@@ -145,6 +145,10 @@ type IssueFields struct {
 	AggregateTimeSpent            int               `json:"aggregatetimespent,omitempty" structs:"aggregatetimespent,omitempty"`
 	AggregateTimeEstimate         int               `json:"aggregatetimeestimate,omitempty" structs:"aggregatetimeestimate,omitempty"`
 	Unknowns                      tcontainer.MarshalMap
+}
+
+type Update struct {
+	IssueLinks []*IssueLink `json:"issuelinks,omitempty" structs:"add,omitempty"`
 }
 
 // MarshalJSON is a custom JSON marshal function for the IssueFields structs.
@@ -284,8 +288,8 @@ type Progress struct {
 
 // Parent represents the parent of a Jira issue, to be used with subtask issue types.
 type Parent struct {
-	ID  string `json:"id,omitempty" structs:"id,omitempty"`
-	Key string `json:"key,omitempty" structs:"key,omitempty"`
+	ID  string `json:"id,omitempty" structs:"id"`
+	Key string `json:"key,omitempty" structs:"key"`
 }
 
 // Time represents the Time definition of Jira as a time.Time of go
@@ -318,24 +322,8 @@ type TransitionField struct {
 
 // CreateTransitionPayload is used for creating new issue transitions
 type CreateTransitionPayload struct {
-	Update     TransitionPayloadUpdate `json:"update,omitempty" structs:"update,omitempty"`
 	Transition TransitionPayload       `json:"transition" structs:"transition"`
 	Fields     TransitionPayloadFields `json:"fields" structs:"fields"`
-}
-
-// TransitionPayloadUpdate represents the updates of Transition calls like DoTransition
-type TransitionPayloadUpdate struct {
-	Comment []TransitionPayloadComment `json:"comment,omitempty" structs:"comment,omitempty"`
-}
-
-// TransitionPayloadComment represents comment in Transition payload
-type TransitionPayloadComment struct {
-	Add TransitionPayloadCommentBody `json:"add,omitempty" structs:"add,omitempty"`
-}
-
-// TransitionPayloadCommentBody represents body of comment in payload
-type TransitionPayloadCommentBody struct {
-	Body string `json:"body,omitempty"`
 }
 
 // TransitionPayload represents the request payload of Transition calls like DoTransition
@@ -452,8 +440,9 @@ type IssueLink struct {
 	ID           string        `json:"id,omitempty" structs:"id,omitempty"`
 	Self         string        `json:"self,omitempty" structs:"self,omitempty"`
 	Type         IssueLinkType `json:"type" structs:"type"`
-	OutwardIssue *Issue        `json:"outwardIssue" structs:"outwardIssue"`
-	InwardIssue  *Issue        `json:"inwardIssue" structs:"inwardIssue"`
+	OutwardIssue *Issue        `json:"outwardIssue,omitempty" structs:"outwardIssue,omitempty"`
+	InwardIssue  *Issue        `json:"inwardIssue,omitempty" structs:"inwardIssue,omitempty"`
+	InwardIssues *[]Issue      `json:"inwardIssues,omitempty" structs:"inwardIssue,omitempty"`
 	Comment      *Comment      `json:"comment,omitempty" structs:"comment,omitempty"`
 }
 
@@ -649,7 +638,7 @@ func (s *IssueService) Get(issueID string, options *GetQueryOptions) (*Issue, *R
 // DownloadAttachmentWithContext returns a Response of an attachment for a given attachmentID.
 // The attachment is in the Response.Body of the response.
 // This is an io.ReadCloser.
-// Caller must close resp.Body.
+// The caller should close the resp.Body.
 func (s *IssueService) DownloadAttachmentWithContext(ctx context.Context, attachmentID string) (*Response, error) {
 	apiEndpoint := fmt.Sprintf("secure/attachment/%s/", attachmentID)
 	req, err := s.client.NewRequestWithContext(ctx, "GET", apiEndpoint, nil)
@@ -667,7 +656,6 @@ func (s *IssueService) DownloadAttachmentWithContext(ctx context.Context, attach
 }
 
 // DownloadAttachment wraps DownloadAttachmentWithContext using the background context.
-// Caller must close resp.Body
 func (s *IssueService) DownloadAttachment(attachmentID string) (*Response, error) {
 	return s.DownloadAttachmentWithContext(context.Background(), attachmentID)
 }
@@ -716,7 +704,6 @@ func (s *IssueService) PostAttachment(issueID string, r io.Reader, attachmentNam
 }
 
 // DeleteAttachmentWithContext deletes an attachment of a given attachmentID
-// Caller must close resp.Body
 func (s *IssueService) DeleteAttachmentWithContext(ctx context.Context, attachmentID string) (*Response, error) {
 	apiEndpoint := fmt.Sprintf("rest/api/2/attachment/%s", attachmentID)
 
@@ -735,13 +722,11 @@ func (s *IssueService) DeleteAttachmentWithContext(ctx context.Context, attachme
 }
 
 // DeleteAttachment wraps DeleteAttachmentWithContext using the background context.
-// Caller must close resp.Body
 func (s *IssueService) DeleteAttachment(attachmentID string) (*Response, error) {
 	return s.DeleteAttachmentWithContext(context.Background(), attachmentID)
 }
 
 // DeleteLinkWithContext deletes a link of a given linkID
-// Caller must close resp.Body
 func (s *IssueService) DeleteLinkWithContext(ctx context.Context, linkID string) (*Response, error) {
 	apiEndpoint := fmt.Sprintf("rest/api/2/issueLink/%s", linkID)
 
@@ -760,7 +745,6 @@ func (s *IssueService) DeleteLinkWithContext(ctx context.Context, linkID string)
 }
 
 // DeleteLink wraps DeleteLinkWithContext using the background context.
-// Caller must close resp.Body
 func (s *IssueService) DeleteLink(linkID string) (*Response, error) {
 	return s.DeleteLinkWithContext(context.Background(), linkID)
 }
@@ -849,7 +833,6 @@ func (s *IssueService) Create(issue *Issue) (*Issue, *Response, error) {
 // while also specifying query params. The issue is found by key.
 //
 // Jira API docs: https://docs.atlassian.com/jira/REST/cloud/#api/2/issue-editIssue
-// Caller must close resp.Body
 func (s *IssueService) UpdateWithOptionsWithContext(ctx context.Context, issue *Issue, opts *UpdateQueryOptions) (*Issue, *Response, error) {
 	apiEndpoint := fmt.Sprintf("rest/api/2/issue/%v", issue.Key)
 	url, err := addOptions(apiEndpoint, opts)
@@ -873,7 +856,6 @@ func (s *IssueService) UpdateWithOptionsWithContext(ctx context.Context, issue *
 }
 
 // UpdateWithOptions wraps UpdateWithOptionsWithContext using the background context.
-// Caller must close resp.Body
 func (s *IssueService) UpdateWithOptions(issue *Issue, opts *UpdateQueryOptions) (*Issue, *Response, error) {
 	return s.UpdateWithOptionsWithContext(context.Background(), issue, opts)
 }
@@ -893,7 +875,6 @@ func (s *IssueService) Update(issue *Issue) (*Issue, *Response, error) {
 // UpdateIssueWithContext updates an issue from a JSON representation. The issue is found by key.
 //
 // https://docs.atlassian.com/jira/REST/7.4.0/#api/2/issue-editIssue
-// Caller must close resp.Body
 func (s *IssueService) UpdateIssueWithContext(ctx context.Context, jiraID string, data map[string]interface{}) (*Response, error) {
 	apiEndpoint := fmt.Sprintf("rest/api/2/issue/%v", jiraID)
 	req, err := s.client.NewRequestWithContext(ctx, "PUT", apiEndpoint, data)
@@ -911,7 +892,6 @@ func (s *IssueService) UpdateIssueWithContext(ctx context.Context, jiraID string
 }
 
 // UpdateIssue wraps UpdateIssueWithContext using the background context.
-// Caller must close resp.Body
 func (s *IssueService) UpdateIssue(jiraID string, data map[string]interface{}) (*Response, error) {
 	return s.UpdateIssueWithContext(context.Background(), jiraID, data)
 }
@@ -985,7 +965,6 @@ func (s *IssueService) DeleteCommentWithContext(ctx context.Context, issueID, co
 		jerr := NewJiraError(resp, err)
 		return jerr
 	}
-	defer resp.Body.Close()
 
 	return nil
 }
@@ -1062,7 +1041,6 @@ func (s *IssueService) UpdateWorklogRecord(issueID, worklogID string, record *Wo
 // AddLinkWithContext adds a link between two issues.
 //
 // Jira API docs: https://docs.atlassian.com/jira/REST/latest/#api/2/issueLink
-// Caller must close resp.Body
 func (s *IssueService) AddLinkWithContext(ctx context.Context, issueLink *IssueLink) (*Response, error) {
 	apiEndpoint := "rest/api/2/issueLink"
 	req, err := s.client.NewRequestWithContext(ctx, "POST", apiEndpoint, issueLink)
@@ -1079,7 +1057,6 @@ func (s *IssueService) AddLinkWithContext(ctx context.Context, issueLink *IssueL
 }
 
 // AddLink wraps AddLinkWithContext using the background context.
-// Caller must close resp.Body
 func (s *IssueService) AddLink(issueLink *IssueLink) (*Response, error) {
 	return s.AddLinkWithContext(context.Background(), issueLink)
 }
@@ -1271,7 +1248,6 @@ func (s *IssueService) DoTransition(ticketID, transitionID string) (*Response, e
 // When performing the transition you can update or set other issue fields.
 //
 // Jira API docs: https://docs.atlassian.com/jira/REST/latest/#api/2/issue-doTransition
-// Caller must close resp.Body
 func (s *IssueService) DoTransitionWithPayloadWithContext(ctx context.Context, ticketID, payload interface{}) (*Response, error) {
 	apiEndpoint := fmt.Sprintf("rest/api/2/issue/%s/transitions", ticketID)
 
@@ -1289,7 +1265,6 @@ func (s *IssueService) DoTransitionWithPayloadWithContext(ctx context.Context, t
 }
 
 // DoTransitionWithPayload wraps DoTransitionWithPayloadWithContext using the background context.
-// Caller must close resp.Body
 func (s *IssueService) DoTransitionWithPayload(ticketID, payload interface{}) (*Response, error) {
 	return s.DoTransitionWithPayloadWithContext(context.Background(), ticketID, payload)
 }
@@ -1374,7 +1349,6 @@ func InitIssueWithMetaAndFields(metaProject *MetaProject, metaIssuetype *MetaIss
 }
 
 // DeleteWithContext will delete a specified issue.
-// Caller must close resp.Body
 func (s *IssueService) DeleteWithContext(ctx context.Context, issueID string) (*Response, error) {
 	apiEndpoint := fmt.Sprintf("rest/api/2/issue/%s", issueID)
 
@@ -1393,7 +1367,6 @@ func (s *IssueService) DeleteWithContext(ctx context.Context, issueID string) (*
 }
 
 // Delete wraps DeleteWithContext using the background context.
-// Caller must close resp.Body
 func (s *IssueService) Delete(issueID string) (*Response, error) {
 	return s.DeleteWithContext(context.Background(), issueID)
 }
@@ -1438,7 +1411,6 @@ func (s *IssueService) GetWatchers(issueID string) (*[]User, *Response, error) {
 // AddWatcherWithContext adds watcher to the given issue
 //
 // Jira API docs: https://docs.atlassian.com/software/jira/docs/api/REST/latest/#api/2/issue-addWatcher
-// Caller must close resp.Body
 func (s *IssueService) AddWatcherWithContext(ctx context.Context, issueID string, userName string) (*Response, error) {
 	apiEndPoint := fmt.Sprintf("rest/api/2/issue/%s/watchers", issueID)
 
@@ -1456,7 +1428,6 @@ func (s *IssueService) AddWatcherWithContext(ctx context.Context, issueID string
 }
 
 // AddWatcher wraps AddWatcherWithContext using the background context.
-// Caller must close resp.Body
 func (s *IssueService) AddWatcher(issueID string, userName string) (*Response, error) {
 	return s.AddWatcherWithContext(context.Background(), issueID, userName)
 }
@@ -1464,7 +1435,6 @@ func (s *IssueService) AddWatcher(issueID string, userName string) (*Response, e
 // RemoveWatcherWithContext removes given user from given issue
 //
 // Jira API docs: https://docs.atlassian.com/software/jira/docs/api/REST/latest/#api/2/issue-removeWatcher
-// Caller must close resp.Body
 func (s *IssueService) RemoveWatcherWithContext(ctx context.Context, issueID string, userName string) (*Response, error) {
 	apiEndPoint := fmt.Sprintf("rest/api/2/issue/%s/watchers", issueID)
 
@@ -1482,7 +1452,6 @@ func (s *IssueService) RemoveWatcherWithContext(ctx context.Context, issueID str
 }
 
 // RemoveWatcher wraps RemoveWatcherWithContext using the background context.
-// Caller must close resp.Body
 func (s *IssueService) RemoveWatcher(issueID string, userName string) (*Response, error) {
 	return s.RemoveWatcherWithContext(context.Background(), issueID, userName)
 }
@@ -1490,7 +1459,6 @@ func (s *IssueService) RemoveWatcher(issueID string, userName string) (*Response
 // UpdateAssigneeWithContext updates the user assigned to work on the given issue
 //
 // Jira API docs: https://docs.atlassian.com/software/jira/docs/api/REST/7.10.2/#api/2/issue-assign
-// Caller must close resp.Body
 func (s *IssueService) UpdateAssigneeWithContext(ctx context.Context, issueID string, assignee *User) (*Response, error) {
 	apiEndPoint := fmt.Sprintf("rest/api/2/issue/%s/assignee", issueID)
 
@@ -1508,7 +1476,6 @@ func (s *IssueService) UpdateAssigneeWithContext(ctx context.Context, issueID st
 }
 
 // UpdateAssignee wraps UpdateAssigneeWithContext using the background context.
-// Caller must close resp.Body
 func (s *IssueService) UpdateAssignee(issueID string, assignee *User) (*Response, error) {
 	return s.UpdateAssigneeWithContext(context.Background(), issueID, assignee)
 }
@@ -1542,7 +1509,6 @@ func (s *IssueService) GetRemoteLinksWithContext(ctx context.Context, id string)
 }
 
 // GetRemoteLinks wraps GetRemoteLinksWithContext using the background context.
-// Caller must close resp.Body
 func (s *IssueService) GetRemoteLinks(id string) (*[]RemoteLink, *Response, error) {
 	return s.GetRemoteLinksWithContext(context.Background(), id)
 }
@@ -1570,28 +1536,4 @@ func (s *IssueService) AddRemoteLinkWithContext(ctx context.Context, issueID str
 // AddRemoteLink wraps AddRemoteLinkWithContext using the background context.
 func (s *IssueService) AddRemoteLink(issueID string, remotelink *RemoteLink) (*RemoteLink, *Response, error) {
 	return s.AddRemoteLinkWithContext(context.Background(), issueID, remotelink)
-}
-
-// UpdateRemoteLinkWithContext updates a remote issue link by linkID.
-//
-// Jira API docs: https://developer.atlassian.com/cloud/jira/platform/rest/v2/api-group-issue-remote-links/#api-rest-api-2-issue-issueidorkey-remotelink-linkid-put
-func (s *IssueService) UpdateRemoteLinkWithContext(ctx context.Context, issueID string, linkID int, remotelink *RemoteLink) (*Response, error) {
-	apiEndpoint := fmt.Sprintf("rest/api/2/issue/%s/remotelink/%d", issueID, linkID)
-	req, err := s.client.NewRequestWithContext(ctx, "PUT", apiEndpoint, remotelink)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := s.client.Do(req, nil)
-	if err != nil {
-		jerr := NewJiraError(resp, err)
-		return resp, jerr
-	}
-
-	return resp, nil
-}
-
-// UpdateRemoteLink wraps UpdateRemoteLinkWithContext using the background context.
-func (s *IssueService) UpdateRemoteLink(issueID string, linkID int, remotelink *RemoteLink) (*Response, error) {
-	return s.UpdateRemoteLinkWithContext(context.Background(), issueID, linkID, remotelink)
 }
