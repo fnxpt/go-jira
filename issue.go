@@ -41,16 +41,16 @@ type UpdateQueryOptions struct {
 
 // Issue represents a Jira issue.
 type Issue struct {
-	Expand         string                                            `json:"expand,omitempty" structs:"expand,omitempty"`
-	ID             string                                            `json:"id,omitempty" structs:"id,omitempty"`
-	Self           string                                            `json:"self,omitempty" structs:"self,omitempty"`
-	Key            string                                            `json:"key,omitempty" structs:"key,omitempty"`
-	Fields         *IssueFields                                      `json:"fields,omitempty" structs:"fields,omitempty"`
-	Update         *map[string][]map[string]map[string][]interface{} `json:"update,omitempty" structs:"update,omitempty"`
-	RenderedFields *IssueRenderedFields                              `json:"renderedFields,omitempty" structs:"renderedFields,omitempty"`
-	Changelog      *Changelog                                        `json:"changelog,omitempty" structs:"changelog,omitempty"`
-	Transitions    []Transition                                      `json:"transitions,omitempty" structs:"transitions,omitempty"`
-	Names          map[string]string                                 `json:"names,omitempty" structs:"names,omitempty"`
+	Expand         string                `json:"expand,omitempty" structs:"expand,omitempty"`
+	ID             string                `json:"id,omitempty" structs:"id,omitempty"`
+	Self           string                `json:"self,omitempty" structs:"self,omitempty"`
+	Key            string                `json:"key,omitempty" structs:"key,omitempty"`
+	Fields         *IssueFields          `json:"fields,omitempty" structs:"fields,omitempty"`
+	Update         tcontainer.MarshalMap `json:"update,omitempty" structs:"update,omitempty"`
+	RenderedFields *IssueRenderedFields  `json:"renderedFields,omitempty" structs:"renderedFields,omitempty"`
+	Changelog      *Changelog            `json:"changelog,omitempty" structs:"changelog,omitempty"`
+	Transitions    []Transition          `json:"transitions,omitempty" structs:"transitions,omitempty"`
+	Names          map[string]string     `json:"names,omitempty" structs:"names,omitempty"`
 }
 
 // ChangelogItems reflects one single changelog item of a history item
@@ -834,7 +834,7 @@ func (s *IssueService) Create(issue *Issue) (*Issue, *Response, error) {
 //
 // Jira API docs: https://docs.atlassian.com/jira/REST/cloud/#api/2/issue-editIssue
 func (s *IssueService) UpdateWithOptionsWithContext(ctx context.Context, issue *Issue, opts *UpdateQueryOptions) (*Issue, *Response, error) {
-	apiEndpoint := fmt.Sprintf("rest/api/2/issue/%v", issue.Key)
+	apiEndpoint := fmt.Sprintf("rest/api/2/issue/%v/editmeta", issue.Key)
 	url, err := addOptions(apiEndpoint, opts)
 	if err != nil {
 		return nil, nil, err
@@ -876,7 +876,7 @@ func (s *IssueService) Update(issue *Issue) (*Issue, *Response, error) {
 //
 // https://docs.atlassian.com/jira/REST/7.4.0/#api/2/issue-editIssue
 func (s *IssueService) UpdateIssueWithContext(ctx context.Context, jiraID string, data map[string]interface{}) (*Response, error) {
-	apiEndpoint := fmt.Sprintf("rest/api/2/issue/%v", jiraID)
+	apiEndpoint := fmt.Sprintf("rest/api/2/issue/%v/editmeta", jiraID)
 	req, err := s.client.NewRequestWithContext(ctx, "PUT", apiEndpoint, data)
 	if err != nil {
 		return nil, err
